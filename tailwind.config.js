@@ -1,4 +1,5 @@
-module.exports = {
+// tailwind.config.js
+export default {
   content: [
     './index.html',
     './src/**/*.{js,jsx,ts,tsx}',
@@ -6,5 +7,7 @@ module.exports = {
   theme: {
     extend: {},
   },
-  plugins: [],
-}; 
+  plugins: [
+    // any extra @tailwindcss/… plugins you install go here
+  ],
+};
