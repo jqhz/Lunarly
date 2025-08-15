@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { getDream, getAnalysis } from '../lib/firestore.js'
+import { getDream, getAnalysis, analyzeDreamWithAI } from '../lib/firestore.js'
 import DreamEditor from '../components/DreamEditor.jsx'
 import AnalysisView from '../components/AnalysisView.jsx'
 
@@ -11,6 +11,7 @@ const Entry = () => {
   const [dream, setDream] = useState(null)
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [analyzing, setAnalyzing] = useState(false)
   const [showEditor, setShowEditor] = useState(false)
 
   useEffect(() => {
@@ -98,12 +99,25 @@ const Entry = () => {
           </button>
           
           {!dream.analysisId && (
-            <Link
-              to={`/analysis?dreamId=${dream.id}`}
+            <button
+              onClick={async () => {
+                setAnalyzing(true)
+                try {
+                  await analyzeDreamWithAI(user.uid, dream.id)
+                  // Reload the dream data to get the new analysis
+                  window.location.reload()
+                } catch (error) {
+                  console.error('Error analyzing dream:', error)
+                  alert('Failed to analyze dream. Please try again.')
+                } finally {
+                  setAnalyzing(false)
+                }
+              }}
+              disabled={analyzing}
               className="btn-primary"
             >
-              Analyze Dream
-            </Link>
+              {analyzing ? 'Analyzing...' : 'Analyze Dream'}
+            </button>
           )}
         </div>
       </div>

@@ -6,13 +6,18 @@ import {
   deleteDoc, 
   getDocs, 
   getDoc,
+  setDoc,
   query,
   where,
   orderBy,
   serverTimestamp,
   increment
 } from 'firebase/firestore'
+import { getFunctions, httpsCallable } from 'firebase/functions'
 import { db } from '../firebase/firebase.js'
+
+// Initialize Firebase Functions
+const functions = getFunctions()
 
 // Dream CRUD operations
 export const createDream = async (uid, dreamData) => {
@@ -24,11 +29,14 @@ export const createDream = async (uid, dreamData) => {
       analysisId: null
     })
     
-    // Update user stats
+    // Update user stats - use setDoc with merge to create if doesn't exist
     const userRef = doc(db, 'users', uid)
-    await updateDoc(userRef, {
-      'stats.totalDreams': increment(1)
-    })
+    await setDoc(userRef, {
+      stats: {
+        totalDreams: increment(1),
+        analysesUsed: 0
+      }
+    }, { merge: true })
     
     return dreamRef.id
   } catch (error) {
@@ -55,11 +63,14 @@ export const deleteDream = async (uid, dreamId) => {
     const dreamRef = doc(db, 'users', uid, 'dreams', dreamId)
     await deleteDoc(dreamRef)
     
-    // Update user stats
+    // Update user stats - use setDoc with merge to handle non-existent docs
     const userRef = doc(db, 'users', uid)
-    await updateDoc(userRef, {
-      'stats.totalDreams': increment(-1)
-    })
+    await setDoc(userRef, {
+      stats: {
+        totalDreams: increment(-1),
+        analysesUsed: 0
+      }
+    }, { merge: true })
   } catch (error) {
     console.error('Error deleting dream:', error)
     throw error
@@ -132,11 +143,14 @@ export const createAnalysis = async (uid, analysisData) => {
       modelVersion: 'gemini-1.5-flash'
     })
     
-    // Update user stats
+    // Update user stats - use setDoc with merge to handle non-existent docs
     const userRef = doc(db, 'users', uid)
-    await updateDoc(userRef, {
-      'stats.analysesUsed': increment(1)
-    })
+    await setDoc(userRef, {
+      stats: {
+        totalDreams: 0,
+        analysesUsed: increment(1)
+      }
+    }, { merge: true })
     
     return analysisRef.id
   } catch (error) {
@@ -184,6 +198,20 @@ export const getUserStats = async (uid) => {
     return { totalDreams: 0, analysesUsed: 0 }
   } catch (error) {
     console.error('Error getting user stats:', error)
+    throw error
+  }
+}
+
+// AI Analysis function
+export const analyzeDreamWithAI = async (uid, dreamId) => {
+  try {
+    const analyzeDream = httpsCallable(functions, 'analyzeDream')
+    const result = await analyzeDream({ uid, dreamId })
+    
+    console.log('Analysis result:', result.data)
+    return result.data
+  } catch (error) {
+    console.error('Error calling analyzeDream function:', error)
     throw error
   }
 }

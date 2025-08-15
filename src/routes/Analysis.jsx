@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { getDreams, getDream } from '../lib/firestore.js'
+import { getDreams, getDream, analyzeDreamWithAI } from '../lib/firestore.js'
 
 const Analysis = () => {
   const { user } = useAuth()
@@ -64,9 +64,14 @@ const Analysis = () => {
 
     setAnalyzing(true)
     try {
-      // For now, we'll just navigate to the first selected dream
-      // In a full implementation, this would call the Cloud Function
+      // Analyze the first selected dream
       const firstDream = selectedDreams[0]
+      console.log('Starting analysis for dream:', firstDream.id)
+      
+      const result = await analyzeDreamWithAI(user.uid, firstDream.id)
+      console.log('Analysis completed:', result)
+      
+      // Navigate to the dream entry to see the analysis
       navigate(`/entry/${firstDream.id}`)
     } catch (error) {
       console.error('Error starting analysis:', error)

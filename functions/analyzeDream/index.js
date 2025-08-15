@@ -8,6 +8,17 @@ if (!admin.apps.length) {
 
 const db = admin.firestore()
 
+// Model configuration for cost optimization
+const GEMINI_MODELS = {
+  // Most efficient (lowest cost) - try first
+  FLASH_LATEST: 'gemini-1.5-flash-latest',
+  // Fallback option
+  FLASH: 'gemini-1.5-flash',
+  // Alternative lightweight models (if available)
+  FLASH_LITE: 'gemini-1.5-flash-lite',
+  NANO: 'gemini-1.5-nano'
+}
+
 exports.analyzeDream = functions.https.onCall(async (data, context) => {
   // Check if user is authenticated
   if (!context.auth) {
@@ -41,31 +52,16 @@ exports.analyzeDream = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('already-exists', 'Dream already has analysis')
     }
 
-    // Prepare the prompt for Gemini
-    const prompt = `You are a thoughtful, empathetic dream interpreter. The user understands this is for reflection and not medical/clinical advice. 
-Given the dream below, provide:
-- A short 2–3 sentence plain-language summary.
-- 4–6 likely themes or symbols and concise interpretations (each 1–2 sentences).
-- Mood indicators (e.g., anxious, joyful, confused) with confidence levels.
-- Practical takeaway: 3 bullet points with actionable reflections the user can try.
-
-Dream:
-TITLE: ${dream.title}
-DATE: ${dream.date.toDate().toLocaleDateString()}
-BODY:
-${dream.body}
-
-Constraints:
-- Keep the response friendly and non-judgmental.
-- Use plain language, no jargon.
-- Keep output JSON-serializable in the following structure:
+    // Prepare the prompt for Gemini - optimized for efficiency
+    const prompt = `Analyze this dream for personal reflection (not medical advice). Provide JSON only:
 {
-  "summary": "...",
-  "themes": [{"symbol":"", "interpretation":""}, ...],
-  "moodTags": [ "anxious", "hopeful" ],
-  "takeaway": [ "..." ],
-  "disclaimer": "This analysis is for reflection and personal insight only. It is not medical or clinical advice." 
-}`
+  "summary": "2-3 sentence summary",
+  "themes": [{"symbol":"key symbol", "interpretation":"brief meaning"}],
+  "moodTags": ["primary", "secondary", "moods"],
+  "takeaway": ["actionable insight 1", "insight 2", "insight 3"]
+}
+
+Dream: ${dream.title} - ${dream.body}`
 
     // Call Google Gemini API
     const geminiApiKey = process.env.GEMINI_API_KEY
@@ -74,23 +70,43 @@ Constraints:
       throw new functions.https.HttpsError('internal', 'Analysis service not configured')
     }
 
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      })
-    })
+    // Try models in order of efficiency (cost)
+    let geminiResponse
+    let modelUsed = GEMINI_MODELS.FLASH_LATEST
+    
+    for (const [modelName, modelId] of Object.entries(GEMINI_MODELS)) {
+      try {
+        console.log(`Trying model: ${modelId}`)
+        geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${geminiApiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: prompt
+              }]
+            }]
+          })
+        })
+        
+        if (geminiResponse.ok) {
+          modelUsed = modelId
+          console.log(`Successfully used model: ${modelId}`)
+          break
+        } else {
+          console.log(`Model ${modelId} failed with status: ${geminiResponse.status}`)
+        }
+      } catch (error) {
+        console.log(`Model ${modelId} failed with error:`, error.message)
+        continue
+      }
+    }
 
-    if (!geminiResponse.ok) {
-      console.error('Gemini API error:', await geminiResponse.text())
-      throw new functions.https.HttpsError('internal', 'Failed to analyze dream')
+    if (!geminiResponse || !geminiResponse.ok) {
+      console.error('All Gemini models failed')
+      throw new functions.https.HttpsError('internal', 'Failed to analyze dream - all models unavailable')
     }
 
     const geminiData = await geminiResponse.json()
@@ -119,7 +135,7 @@ Constraints:
       geminiResponse: responseText,
       insights: insights,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      modelVersion: 'gemini-1.5-flash'
+      modelVersion: modelUsed
     }
 
     const analysisRef = await db.collection('users').doc(uid).collection('analyses').add(analysisData)
@@ -138,7 +154,8 @@ Constraints:
 
     return {
       analysisId: analysisId,
-      insights: insights
+      insights: insights,
+      modelUsed: modelUsed
     }
 
   } catch (error) {
