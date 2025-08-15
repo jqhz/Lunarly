@@ -17,7 +17,7 @@ A beautiful, dark-themed web app for logging dreams and getting AI-powered insig
 - **Styling**: TailwindCSS 4
 - **Authentication**: Firebase Auth (Google Sign-In)
 - **Database**: Firestore
-- **AI**: Google Gemini (via Cloud Functions)
+- **AI**: Firebase AI with Gemini (client-side)
 - **Testing**: Vitest + React Testing Library
 - **Deployment**: Firebase Hosting
 
@@ -27,7 +27,6 @@ A beautiful, dark-themed web app for logging dreams and getting AI-powered insig
 
 - Node.js 18+ 
 - Firebase account
-- Google Gemini API key
 
 ### 1. Clone and Install
 
@@ -63,8 +62,7 @@ VITE_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
 
-# Google Gemini API Key (for Cloud Functions)
-GEMINI_API_KEY=your_gemini_api_key
+# Firebase AI handles Gemini integration automatically (no API keys needed)
 ```
 
 ### 4. Firestore Security Rules
@@ -75,13 +73,9 @@ Deploy the security rules to your Firebase project:
 firebase deploy --only firestore:rules
 ```
 
-### 5. Cloud Functions Setup
+### 5. Firebase AI Setup
 
-1. Install Firebase CLI: `npm install -g firebase-tools`
-2. Login: `firebase login`
-3. Initialize functions: `firebase init functions`
-4. Set environment variable: `firebase functions:config:set gemini.api_key="your_gemini_api_key"`
-5. Deploy functions: `firebase deploy --only functions`
+The app uses Firebase AI with Gemini for dream analysis. This works directly in the browser with the Spark plan - no additional setup required!
 
 ### 6. Run Development Server
 
